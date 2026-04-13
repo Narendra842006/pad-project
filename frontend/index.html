@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECG Anomaly Detection</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      min-height: 100vh;
+    }
+
+    nav {
+      background: #1a365d;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    nav .logo {
+      width: 36px; height: 36px;
+      background: #63b3ed;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: white; font-weight: bold;
+    }
+    nav h1 { color: white; font-size: 18px; font-weight: 600; }
+    nav span { color: #90cdf4; font-size: 13px; margin-left: auto; }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .upload-zone {
+      border: 2px dashed #cbd5e0;
+      border-radius: 10px;
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #f7fafc;
+    }
+    .upload-zone:hover,
+    .upload-zone.drag-over { border-color: #4299e1; background: #ebf8ff; }
+    .upload-zone .icon { font-size: 40px; margin-bottom: 0.75rem; }
+    .upload-zone p { color: #718096; font-size: 14px; }
+    .upload-zone strong { color: #2b6cb0; }
+    #file-input { display: none; }
+
+    .btn {
+      background: #3182ce;
+      color: white;
+      border: none;
+      padding: 0.65rem 1.75rem;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 1rem;
+    }
+    .btn:hover { background: #2b6cb0; }
+    .btn:disabled { background: #a0aec0; cursor: not-allowed; }
+    .btn-outline {
+      background: white;
+      color: #3182ce;
+      border: 1.5px solid #3182ce;
+    }
+    .btn-outline:hover { background: #ebf8ff; }
+
+    .result-banner {
+      border-radius: 10px;
+      padding: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .result-banner.normal  { background: #f0fff4; border: 1.5px solid #68d391; }
+    .result-banner.abnormal{ background: #fff5f5; border: 1.5px solid #fc8181; }
+
+    .result-icon {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; flex-shrink: 0;
+    }
+    .normal  .result-icon { background: #c6f6d5; }
+    .abnormal .result-icon { background: #fed7d7; }
+
+    .result-label {
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .normal .result-label  { color: #276749; }
+    .abnormal .result-label { color: #9b2c2c; }
+
+    .result-sub { font-size: 13px; color: #718096; margin-top: 2px; }
+
+    .metrics {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-top: 1rem;
+    }
+    .metric {
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.5rem 0.9rem;
+      font-size: 13px;
+    }
+    .metric span { color: #718096; }
+    .metric strong { color: #2d3748; display: block; font-size: 15px; }
+
+    .bar-wrap {
+      background: #e2e8f0;
+      border-radius: 99px;
+      height: 8px;
+      margin-top: 0.75rem;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.6s ease;
+    }
+    .bar.normal   { background: #48bb78; }
+    .bar.abnormal { background: #fc8181; }
+
+    .chart-wrap { position: relative; height: 200px; margin-top: 0.5rem; }
+
+    .info-box {
+      background: #ebf8ff;
+      border-left: 3px solid #4299e1;
+      border-radius: 0 8px 8px 0;
+      padding: 0.75rem 1rem;
+      font-size: 13px;
+      color: #2c5282;
+      margin-top: 1rem;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid #ffffff40;
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none; }
+
+    .sample-note {
+      font-size: 12px;
+      color: #a0aec0;
+      margin-top: 0.5rem;
+      text-align: center;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .history-table th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      color: #718096;
+      border-bottom: 1px solid #e2e8f0;
+      font-weight: 500;
+    }
+    .history-table td {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #f7fafc;
+    }
+    .badge {
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge.normal   { background: #c6f6d5; color: #276749; }
+    .badge.abnormal { background: #fed7d7; color: #9b2c2c; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">E</div>
+  <h1>ECG Anomaly Detection</h1>
+  <span>CNN + Self-Attention Autoencoder - KARE Project</span>
+</nav>
+
+<div class="container">
+
+  <div class="card">
+    <h2>Upload ECG Signal</h2>
+    <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div class="icon">📂</div>
+      <p><strong>Click to upload</strong> or drag & drop your ECG CSV file here</p>
+      <p style="margin-top:6px">CSV with 140 comma-separated values (one row = one ECG beat)</p>
+      <input type="file" id="file-input" accept=".csv,.txt">
+    </div>
+    <p class="sample-note" id="file-name-label">No file selected</p>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap">
+      <button class="btn" id="predict-btn" onclick="runPrediction()" disabled>
+        Analyse ECG
+      </button>
+      <button class="btn btn-outline" onclick="loadSampleNormal()">
+        Try Sample Normal
+      </button>
+      <button class="btn btn-outline" onclick="loadSampleAbnormal()">
+        Try Sample Abnormal
+      </button>
+    </div>
+
+    <div class="info-box">
+      How to get your CSV: Download the Kaggle ECG dataset, open ecg.csv, copy any single row (140 values) and save as a .csv file. Or click the sample buttons above to test instantly.
+    </div>
+  </div>
+
+  <div class="card hidden" id="result-card">
+    <h2>Prediction Result</h2>
+
+    <div class="result-banner" id="result-banner">
+      <div class="result-icon" id="result-icon"></div>
+      <div>
+        <div class="result-label" id="result-label"></div>
+        <div class="result-sub" id="result-sub"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:#718096">Confidence</span>
+        <span id="conf-label" style="font-weight:600"></span>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar" id="conf-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <span>Reconstruction Error</span>
+        <strong id="m-error">-</strong>
+      </div>
+      <div class="metric">
+        <span>Threshold</span>
+        <strong id="m-threshold">-</strong>
+      </div>
+      <div class="metric">
+        <span>Decision</span>
+        <strong id="m-decision">-</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="chart-card">
+    <h2>ECG Signal Waveform</h2>
+    <div class="chart-wrap">
+      <canvas id="ecg-chart"></canvas>
+    </div>
+  </div>
+
+  <div class="card hidden" id="history-card">
+    <h2>Test History</h2>
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>File</th>
+          <th>Prediction</th>
+          <th>Error</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="history-body"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const API = "http://localhost:8000";
+let chartInstance = null;
+let history = [];
+let currentFileName = "sample";
+let sampleSignal = null;
+
+document.getElementById("file-input").addEventListener("change", function() {
+  if (this.files[0]) {
+    currentFileName = this.files[0].name;
+    document.getElementById("file-name-label").textContent = "Selected: " + currentFileName;
+    document.getElementById("predict-btn").disabled = false;
+  }
+});
+
+const dropZone = document.getElementById("drop-zone");
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("drag-over");
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    document.getElementById("file-input").files = e.dataTransfer.files;
+    currentFileName = file.name;
+    document.getElementById("file-name-label").textContent = "Selected: " + file.name;
+    document.getElementById("predict-btn").disabled = false;
+  }
+});
+
+async function runPrediction() {
+  const fileInput = document.getElementById("file-input");
+  if (!fileInput.files[0] && !sampleSignal) return;
+
+  const btn = document.getElementById("predict-btn");
+  btn.innerHTML = '<span class="spinner"></span>Analysing...';
+  btn.disabled = true;
+
+  try {
+    let result;
+
+    if (sampleSignal) {
+      result = await fetch(API + "/predict-raw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values: sampleSignal })
+      }).then(r => r.json());
+      sampleSignal = null;
+    } else {
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      result = await fetch(API + "/predict", {
+        method: "POST",
+        body: formData
+      }).then(r => r.json());
+    }
+
+    if (result.detail) throw new Error(result.detail);
+    showResult(result);
+
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.innerHTML = "Analyse ECG";
+    btn.disabled = false;
+  }
+}
+
+function showResult(data) {
+  const isNormal = data.is_normal;
+
+  const banner = document.getElementById("result-banner");
+  banner.className = "result-banner " + (isNormal ? "normal" : "abnormal");
+  document.getElementById("result-icon").textContent = isNormal ? "✅" : "⚠️";
+  document.getElementById("result-label").textContent = data.prediction;
+  document.getElementById("result-sub").textContent = isNormal
+    ? "The ECG signal appears to be within normal parameters."
+    : "The ECG signal shows signs of a cardiac anomaly. Please consult a doctor.";
+
+  const conf = data.confidence;
+  document.getElementById("conf-label").textContent = conf.toFixed(1) + "%";
+  const bar = document.getElementById("conf-bar");
+  bar.style.width = conf + "%";
+  bar.className = "bar " + (isNormal ? "normal" : "abnormal");
+
+  document.getElementById("m-error").textContent = data.reconstruction_error.toFixed(8);
+  document.getElementById("m-threshold").textContent = data.threshold.toFixed(8);
+  document.getElementById("m-decision").textContent = data.reconstruction_error <= data.threshold
+    ? "Error <= Threshold -> Normal"
+    : "Error > Threshold -> Abnormal";
+
+  document.getElementById("result-card").classList.remove("hidden");
+
+  if (data.signal) plotECG(data.signal, isNormal);
+
+  addHistory(currentFileName, data);
+}
+
+function plotECG(signal, isNormal) {
+  document.getElementById("chart-card").classList.remove("hidden");
+  const ctx = document.getElementById("ecg-chart").getContext("2d");
+  if (chartInstance) chartInstance.destroy();
+
+  const color = isNormal ? "#48bb78" : "#fc8181";
+  const labels = signal.map((_, i) => i);
+
+  chartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "ECG Signal",
+        data: signal,
+        borderColor: color,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { font: { size: 12 } } },
+        tooltip: { mode: "index", intersect: false }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: "Time Step", font: { size: 12 } },
+          ticks: { maxTicksLimit: 10, font: { size: 11 } }
+        },
+        y: {
+          title: { display: true, text: "Amplitude (normalized)", font: { size: 12 } },
+          ticks: { font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+function addHistory(name, data) {
+  history.unshift({ name, data, time: new Date().toLocaleTimeString() });
+  const body = document.getElementById("history-body");
+  body.innerHTML = history.slice(0, 10).map((h, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${h.name}</td>
+      <td><span class="badge ${h.data.is_normal ? 'normal' : 'abnormal'}">${h.data.prediction}</span></td>
+      <td>${h.data.reconstruction_error.toFixed(8)}</td>
+      <td>${h.time}</td>
+    </tr>
+  `).join("");
+  document.getElementById("history-card").classList.remove("hidden");
+}
+
+function showError(msg) {
+  const card = document.getElementById("result-card");
+  card.classList.remove("hidden");
+  card.innerHTML = `
+    <h2>Prediction Result</h2>
+    <div style="background:#fff5f5;border:1.5px solid #fc8181;border-radius:10px;padding:1.25rem;color:#9b2c2c">
+      <strong>Error:</strong> ${msg}<br>
+      <small style="color:#718096;margin-top:6px;display:block">
+        Make sure the backend is running: cd backend && uvicorn main:app --reload
+      </small>
+    </div>`;
+}
+
+function loadSampleNormal() {
+  currentFileName = "sample_normal.csv";
+  document.getElementById("file-name-label").textContent = "Sample: Normal ECG loaded";
+  document.getElementById("predict-btn").disabled = false;
+
+  // Simple, repeating baseline pattern - produces LOW reconstruction error
+  const signal = [];
+  const basePattern = [0.48, 0.50, 0.52, 0.51, 0.50, 0.49, 0.48, 0.47];
+  for (let i = 0; i < 140; i++) {
+    let v = basePattern[i % basePattern.length];
+    v += (Math.random() - 0.5) * 0.01; // Minimal noise
+    signal.push(Math.max(0, Math.min(1, v)));
+  }
+  sampleSignal = signal;
+  runPrediction();
+}
+
+function loadSampleAbnormal() {
+  currentFileName = "sample_abnormal.csv";
+  document.getElementById("file-name-label").textContent = "Sample: Abnormal ECG loaded";
+  document.getElementById("predict-btn").disabled = false;
+
+  // Highly irregular, random spiky signal - produces HIGH reconstruction error
+  const signal = [];
+  for (let i = 0; i < 140; i++) {
+    let v = Math.random(); // Complete randomness
+    
+    // Add sharp irregular spikes at random positions
+    if (Math.random() > 0.85) v += 0.3;
+    if (Math.random() > 0.90) v -= 0.2;
+    
+    // Irregular jumps
+    if (i === 20 || i === 50 || i === 80 || i === 110) v = Math.random() > 0.5 ? 0.9 : 0.1;
+    
+    signal.push(Math.max(0, Math.min(1, v)));
+  }
+  sampleSignal = signal;
+  runPrediction();
+}
+</script>
+</body>
+</html>
