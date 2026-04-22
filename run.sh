@@ -3,7 +3,7 @@ echo "Starting ECG Anomaly Detection Website..."
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000 &
+cd ../frontend
+python3 -m http.server 5500 &
 sleep 2
-open ../frontend/index.html    # Mac
-# xdg-open ../frontend/index.html  # Linux
-echo "Done! Website open in browser."
+echo "Done! Frontend: http://localhost:5500  Backend: http://localhost:8000"

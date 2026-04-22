@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import os
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -15,8 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load model once at startup
-THRESHOLD = 0.000107
+# Load model once at startup.
+# This default threshold is calibrated for the shipped model weights and current
+# per-sample min-max normalization. You can override with ECG_THRESHOLD env var.
+THRESHOLD = float(os.getenv("ECG_THRESHOLD", "0.108"))
 
 model = CNNAttentionAutoencoder()
 model.load_state_dict(torch.load("cnn_attention_ae.pth", map_location=torch.device("cpu")))
